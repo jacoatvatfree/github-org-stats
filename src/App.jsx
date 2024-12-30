@@ -1,9 +1,9 @@
-import { useState } from 'react'
-import LoginForm from './components/LoginForm'
-import Dashboard from './components/Dashboard'
+import { useState } from "react";
+import LoginForm from "./components/LoginForm";
+import Dashboard from "./components/Dashboard";
 
 function App() {
-  const [credentials, setCredentials] = useState(null)
+  const [credentials, setCredentials] = useState(null);
 
   return (
     <div className="min-h-screen p-4 sm:p-6 lg:p-8">
@@ -13,7 +13,7 @@ function App() {
         <Dashboard credentials={credentials} />
       )}
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

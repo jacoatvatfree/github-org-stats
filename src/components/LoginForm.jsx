@@ -1,20 +1,22 @@
-import { useState } from 'react'
-import toast from 'react-hot-toast'
+import { useState, useEffect } from "react";
+import toast from "react-hot-toast";
 
 export default function LoginForm({ onSubmit }) {
   const [formData, setFormData] = useState({
-    token: '',
-    organization: ''
-  })
+    token: localStorage.getItem("github_token") || "",
+    organization: "",
+  });
 
   const handleSubmit = (e) => {
-    e.preventDefault()
+    e.preventDefault();
     if (!formData.token || !formData.organization) {
-      toast.error('Please fill in all fields')
-      return
+      toast.error("Please fill in all fields");
+      return;
     }
-    onSubmit(formData)
-  }
+    // Save token to localStorage
+    localStorage.setItem("github_token", formData.token);
+    onSubmit(formData);
+  };
 
   return (
     <div className="max-w-md mx-auto mt-20">
@@ -31,7 +33,9 @@ export default function LoginForm({ onSubmit }) {
               type="password"
               className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"
               value={formData.token}
-              onChange={(e) => setFormData(prev => ({...prev, token: e.target.value}))}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, token: e.target.value }))
+              }
               placeholder="ghp_xxxxxxxxxxxx"
             />
           </div>
@@ -43,7 +47,12 @@ export default function LoginForm({ onSubmit }) {
               type="text"
               className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"
               value={formData.organization}
-              onChange={(e) => setFormData(prev => ({...prev, organization: e.target.value}))}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  organization: e.target.value,
+                }))
+              }
               placeholder="organization"
             />
           </div>
@@ -56,5 +65,5 @@ export default function LoginForm({ onSubmit }) {
         </form>
       </div>
     </div>
-  )
+  );
 }

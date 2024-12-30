@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
-import { GithubRepository } from '../infrastructure/github-repository'
-import { Organization } from '../domain/organization'
+import { useEffect, useState } from "react";
+import { GithubRepository } from "../infrastructure/github-repository";
+import { Organization } from "../domain/organization";
 import {
   StarIcon,
   UsersIcon,
@@ -8,52 +8,79 @@ import {
   CodeBracketIcon,
   CircleStackIcon,
   ChatBubbleBottomCenterTextIcon,
-  ArrowsRightLeftIcon
-} from '@heroicons/react/24/outline'
-import toast from 'react-hot-toast'
+  ArrowsRightLeftIcon,
+} from "@heroicons/react/24/outline";
+import toast from "react-hot-toast";
 
 export default function Dashboard({ credentials }) {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [loadingMessage, setLoadingMessage] = useState("Initializing...");
+  const [progress, setProgress] = useState({ current: 0, total: 0 });
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const repo = new GithubRepository(credentials.token)
-        const orgData = await repo.getOrganization(credentials.organization)
+        const repo = new GithubRepository(credentials.token);
+        setLoadingMessage("Fetching organization data...");
+
+        const orgData = await repo.getOrganization(
+          credentials.organization,
+          (current, total) => {
+            setProgress({ current, total });
+            setLoadingMessage(
+              `Processing repositories (${current}/${total})...`,
+            );
+          },
+        );
+
         const organization = new Organization(
           credentials.organization,
           orgData.repos,
           orgData.members,
-          orgData.yearlyStats
-        )
-        
+          orgData.yearlyStats,
+        );
+
         setData({
           totalStars: organization.getTotalStars(),
-          topRepos: organization.getMostPopularRepos(),
-          topContributors: organization.getMostActiveContributors(),
+          topReposByStars: organization.getMostPopularRepos(),
+          topReposByCommits: organization.getMostActiveRepos(),
+          topMembers: organization.getMostActiveMembers(),
           memberCount: organization.members.length,
-          yearlyStats: organization.getYearlyStats()
-        })
+          yearlyStats: organization.getYearlyStats(),
+        });
       } catch (error) {
-        toast.error(error.message)
+        toast.error(error.message);
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
-    fetchData()
-  }, [credentials])
+    fetchData();
+  }, [credentials]);
 
   if (loading || !data) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+        <div className="text-gray-600 text-lg">{loadingMessage}</div>
+        {progress.total > 0 && (
+          <div className="mt-4 w-64">
+            <div className="bg-gray-200 rounded-full h-2.5">
+              <div
+                className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+                style={{
+                  width: `${(progress.current / progress.total) * 100}%`,
+                }}
+              ></div>
+            </div>
+          </div>
+        )}
       </div>
-    )
+    );
   }
 
-  const currentYear = new Date().getFullYear()
+  const currentYear = new Date().getFullYear();
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -62,16 +89,8 @@ export default function Dashboard({ credentials }) {
       </h1>
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-8">
-        <StatCard
-          title="Total Stars"
-          value={data.totalStars}
-          icon={StarIcon}
-        />
-        <StatCard
-          title="Members"
-          value={data.memberCount}
-          icon={UsersIcon}
-        />
+        <StatCard title="Total Stars" value={data.totalStars} icon={StarIcon} />
+        <StatCard title="Members" value={data.memberCount} icon={UsersIcon} />
       </div>
 
       <h2 className="text-2xl font-bold text-gray-900 mb-6">
@@ -107,16 +126,19 @@ export default function Dashboard({ credentials }) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white p-6 rounded-xl shadow-sm">
           <h2 className="text-xl font-semibold mb-4 flex items-center">
-            <StarIcon className="h-5 w-5 mr-2" />
+            <CodeBracketIcon className="h-5 w-5 mr-2" />
             Top Repositories
           </h2>
           <div className="space-y-4">
-            {data.topRepos.map((repo) => (
-              <div key={repo.name} className="flex justify-between items-center">
+            {data.topReposByCommits.map((repo) => (
+              <div
+                key={repo.name}
+                className="flex justify-between items-center"
+              >
                 <span className="text-gray-900">{repo.name}</span>
                 <span className="flex items-center text-gray-600">
-                  <StarIcon className="h-4 w-4 mr-1" />
-                  {repo.stars}
+                  <CodeBracketIcon className="h-4 w-4 mr-1" />
+                  {repo.commitCount || 0}
                 </span>
               </div>
             ))}
@@ -126,14 +148,17 @@ export default function Dashboard({ credentials }) {
         <div className="bg-white p-6 rounded-xl shadow-sm">
           <h2 className="text-xl font-semibold mb-4 flex items-center">
             <ChartBarIcon className="h-5 w-5 mr-2" />
-            Top Contributors
+            Top Organization Members
           </h2>
           <div className="space-y-4">
-            {data.topContributors.map((contributor) => (
-              <div key={contributor.login} className="flex justify-between items-center">
-                <span className="text-gray-900">{contributor.login}</span>
+            {data.topMembers.map((member) => (
+              <div
+                key={member.login}
+                className="flex justify-between items-center"
+              >
+                <span className="text-gray-900">{member.login}</span>
                 <span className="text-gray-600">
-                  {contributor.contributions} contributions
+                  {member.contributions} contributions
                 </span>
               </div>
             ))}
@@ -141,7 +166,7 @@ export default function Dashboard({ credentials }) {
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function StatCard({ title, value, subtitle, icon: Icon }) {
@@ -156,5 +181,5 @@ function StatCard({ title, value, subtitle, icon: Icon }) {
       <p className="text-gray-600">{title}</p>
       {subtitle && <p className="text-sm text-gray-500">{subtitle}</p>}
     </div>
-  )
+  );
 }
