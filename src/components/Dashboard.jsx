@@ -17,6 +17,7 @@ export default function Dashboard({ credentials }) {
   const [loading, setLoading] = useState(true);
   const [loadingMessage, setLoadingMessage] = useState("Initializing...");
   const [progress, setProgress] = useState({ current: 0, total: 0 });
+  const [showJson, setShowJson] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -190,6 +191,21 @@ export default function Dashboard({ credentials }) {
               ))}
           </div>
         </div>
+      </div>
+
+      <div className="mt-8">
+        <button
+          onClick={() => setShowJson(!showJson)}
+          className="mb-4 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 transition-colors"
+        >
+          {showJson ? "Hide" : "Show"} JSON Data
+        </button>
+
+        {showJson && (
+          <pre className="bg-gray-50 p-4 rounded-lg overflow-auto max-h-96">
+            {JSON.stringify(data, null, 2)}
+          </pre>
+        )}
       </div>
     </div>
   );
