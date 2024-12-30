@@ -23,7 +23,6 @@ export class GithubRepository {
     let page = 1;
     let hasNextPage = true;
 
-    // Fetch all pages of repositories
     while (hasNextPage) {
       const response = await this.client.rest.repos.listForOrg({
         org: orgName,
@@ -34,7 +33,6 @@ export class GithubRepository {
 
       allRepos = [...allRepos, ...response.data];
 
-      // Check if there's a next page using the Link header
       const linkHeader = response.headers.link;
       hasNextPage = linkHeader && linkHeader.includes('rel="next"');
       page++;
@@ -104,6 +102,29 @@ export class GithubRepository {
 
     const currentYear = new Date().getFullYear();
 
+    // Get PR types from branch names
+    const prTypes = {};
+    for (const repo of allRepos) {
+      try {
+        const pulls = await this.client.rest.pulls.list({
+          owner: orgName,
+          repo: repo.name,
+          state: 'all',
+          per_page: 100,
+        });
+
+        pulls.data.forEach(pr => {
+          const branchName = pr.head.ref;
+          const type = branchName.split('/')[0];
+          if (type && new Date(pr.created_at).getFullYear() === currentYear) {
+            prTypes[type] = (prTypes[type] || 0) + 1;
+          }
+        });
+      } catch (error) {
+        console.warn(`Failed to get PRs for ${repo.name}:`, error);
+      }
+    }
+
     return {
       repositories: {
         created: repoStats.filter(
@@ -123,6 +144,7 @@ export class GithubRepository {
       pullRequests: {
         opened: repoStats.reduce((sum, repo) => sum + repo.pulls.opened, 0),
         closed: repoStats.reduce((sum, repo) => sum + repo.pulls.closed, 0),
+        types: prTypes
       },
     };
   }
@@ -139,7 +161,6 @@ export class GithubRepository {
         },
       );
 
-      // Get total count from the last page number in the Link header
       const linkHeader = response.headers.link;
       if (linkHeader) {
         const matches = linkHeader.match(/page=(\d+)>; rel="last"/);
@@ -151,35 +172,6 @@ export class GithubRepository {
       return response.data.length;
     } catch (error) {
       console.warn(`Failed to get commits for ${repo}:`, error);
-      return 0;
-    }
-  }
-
-  async getCommitCount(owner, repo) {
-    try {
-      const response = await this.client.request(
-        "GET /repos/{owner}/{repo}/commits",
-        {
-          owner,
-          repo,
-          per_page: 1,
-        },
-      );
-
-      // Get total count from the last page number in the Link header
-      const linkHeader = response.headers.link;
-      if (linkHeader) {
-        const matches = linkHeader.match(/page=(\d+)>; rel="last"/);
-        if (matches) {
-          return parseInt(matches[1], 10);
-        }
-      }
-
-      // If no Link header (repository has few commits), count from response
-      const totalCount = parseInt(response.headers["last-page"], 10);
-      return totalCount || response.data.length;
-    } catch (error) {
-      console.warn(`Failed to get commit count for ${repo}:`, error);
       return 0;
     }
   }

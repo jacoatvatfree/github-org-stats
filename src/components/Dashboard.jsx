@@ -48,6 +48,7 @@ export default function Dashboard({ credentials }) {
           topMembers: organization.getMostActiveMembers(),
           memberCount: organization.members.length,
           yearlyStats: organization.getYearlyStats(),
+          prTypeStats: organization.getPullRequestTypeStats(),
         });
       } catch (error) {
         toast.error(error.message);
@@ -123,7 +124,7 @@ export default function Dashboard({ credentials }) {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-xl shadow-sm">
           <h2 className="text-xl font-semibold mb-4 flex items-center">
             <CodeBracketIcon className="h-5 w-5 mr-2" />
@@ -159,6 +160,26 @@ export default function Dashboard({ credentials }) {
                 <span className="text-gray-900">{member.login}</span>
                 <span className="text-gray-600">
                   {member.contributions} contributions
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-xl shadow-sm">
+          <h2 className="text-xl font-semibold mb-4 flex items-center">
+            <ArrowsRightLeftIcon className="h-5 w-5 mr-2" />
+            Pull Request Types
+          </h2>
+          <div className="space-y-4">
+            {Object.entries(data.prTypeStats).map(([type, count]) => (
+              <div
+                key={type}
+                className="flex justify-between items-center"
+              >
+                <span className="text-gray-900">{type}</span>
+                <span className="text-gray-600">
+                  {count} PRs
                 </span>
               </div>
             ))}
