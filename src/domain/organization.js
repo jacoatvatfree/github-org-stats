@@ -29,35 +29,18 @@ export class Organization {
   }
 
   getMostActiveMembers(limit = 5) {
-    const memberStats = new Map();
-
-    this.members.forEach((member) => {
-      memberStats.set(member.login, 0);
-    });
-
-    this.repos.forEach((repo) => {
-      if (repo.contributors && Array.isArray(repo.contributors)) {
-        repo.contributors.forEach((contributor) => {
-          if (memberStats.has(contributor.login)) {
-            const current = memberStats.get(contributor.login);
-            memberStats.set(
-              contributor.login,
-              current + contributor.contributions,
-            );
-          }
-        });
-      }
-    });
-
-    return Array.from(memberStats.entries())
-      .sort(([, a], [, b]) => b - a)
+    return [...this.members]
+      .sort((a, b) => (b.contributions || 0) - (a.contributions || 0))
       .slice(0, limit)
-      .map(([login, contributions]) => ({ login, contributions }));
+      .map(({ login, contributions }) => ({
+        login,
+        contributions: contributions || 0,
+      }));
   }
 
   getPullRequestTypeStats() {
     const typeStats = {};
-    
+
     if (this.yearlyStats.pullRequests.types) {
       Object.entries(this.yearlyStats.pullRequests.types)
         .sort(([, a], [, b]) => b - a)
@@ -65,7 +48,7 @@ export class Organization {
           typeStats[type] = count;
         });
     }
-    
+
     return typeStats;
   }
 
