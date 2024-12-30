@@ -96,7 +96,26 @@ export class GithubRepository {
             ),
           ]);
 
-          const yearlyIssues = issuesAndPRs.filter(
+          // Separate API calls for issues and PRs
+          const issues = issuesAndPRs.filter((item) => !item.pull_request);
+
+          // Get PRs with full details including head
+          const pullRequests = await this.getAllPages(
+            this.client.rest.pulls.list.bind(this.client.rest.pulls),
+            {
+              owner: orgName,
+              repo: repo.name,
+              state: "closed",
+              sort: "created",
+              direction: "desc",
+            },
+          );
+
+          const yearlyIssues = issues.filter(
+            (item) => new Date(item.created_at).getFullYear() === currentYear,
+          );
+
+          const yearlyPRs = pullRequests.filter(
             (item) => new Date(item.created_at).getFullYear() === currentYear,
           );
 
@@ -105,19 +124,14 @@ export class GithubRepository {
             stars: repo.stargazers_count,
             contributorStats,
             issues: {
-              opened: yearlyIssues.filter((item) => !item.pull_request).length,
-              closed: yearlyIssues.filter(
-                (item) => !item.pull_request && item.state === "closed",
-              ).length,
+              opened: yearlyIssues.length,
+              closed: yearlyIssues.filter((item) => item.state === "closed")
+                .length,
             },
             pullRequests: {
-              opened: yearlyIssues.filter((item) => item.pull_request).length,
-              closed: yearlyIssues.filter(
-                (item) => item.pull_request && item.state === "closed",
-              ).length,
-              types: this.categorizePRTypes(
-                yearlyIssues.filter((item) => item.pull_request),
-              ),
+              opened: yearlyPRs.length,
+              closed: yearlyPRs.filter((pr) => pr.state === "closed").length,
+              types: this.categorizePRTypes(yearlyPRs),
             },
             createdAt: repo.created_at,
             archivedAt: repo.archived_at,
@@ -242,14 +256,24 @@ export class GithubRepository {
 
   categorizePRTypes(prs) {
     const types = {};
-    prs.forEach((pr) => {
+
+    // Only count closed PRs
+    const closedPRs = prs.filter((pr) => pr.state === "closed");
+
+    closedPRs.forEach((pr) => {
       if (pr.head?.ref) {
+        // Get type from branch name before the "/" or set as "unknown"
         const type = pr.head.ref.includes("/")
-          ? pr.head.ref.split("/")[0]
+          ? pr.head.ref.split("/")[0].toLowerCase()
           : "unknown";
+
         types[type] = (types[type] || 0) + 1;
+      } else {
+        // If no branch ref is available, count as unknown
+        types["unknown"] = (types["unknown"] || 0) + 1;
       }
     });
+
     return types;
   }
 

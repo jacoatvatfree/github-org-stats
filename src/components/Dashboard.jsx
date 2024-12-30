@@ -45,7 +45,9 @@ export default function Dashboard({ credentials }) {
           totalStars: organization.getTotalStars(),
           topReposByStars: organization.getMostPopularRepos(),
           topReposByCommits: organization.getMostActiveRepos(),
-          topMembers: organization.getMostActiveMembers(),
+          topMembers: organization
+            .getMostActiveMembers()
+            .filter((x) => x.contributions > 0),
           memberCount: organization.members.length,
           yearlyStats: organization.getYearlyStats(),
           prTypeStats: organization.getPullRequestTypeStats(),
@@ -172,17 +174,14 @@ export default function Dashboard({ credentials }) {
             Pull Request Types
           </h2>
           <div className="space-y-4">
-            {Object.entries(data.prTypeStats).map(([type, count]) => (
-              <div
-                key={type}
-                className="flex justify-between items-center"
-              >
-                <span className="text-gray-900">{type}</span>
-                <span className="text-gray-600">
-                  {count} PRs
-                </span>
-              </div>
-            ))}
+            {Object.entries(data.prTypeStats)
+              .filter(([type, count]) => count > 5)
+              .map(([type, count]) => (
+                <div key={type} className="flex justify-between items-center">
+                  <span className="text-gray-900">{type}</span>
+                  <span className="text-gray-600">{count} PRs</span>
+                </div>
+              ))}
           </div>
         </div>
       </div>
