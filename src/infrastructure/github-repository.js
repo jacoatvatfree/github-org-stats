@@ -3,9 +3,62 @@ import { Octokit } from "octokit";
 export class GithubRepository {
   constructor(token) {
     this.client = new Octokit({ auth: token });
+    this.CACHE_KEY = "github_org_cache";
+    this.CACHE_EXPIRATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+  }
+
+  async getAllPages(method, params) {
+    let allData = [];
+    let page = 1;
+    let hasNextPage = true;
+
+    while (hasNextPage) {
+      const response = await method({ ...params, page, per_page: 100 });
+      allData = [...allData, ...response.data];
+
+      const linkHeader = response.headers.link;
+      hasNextPage = linkHeader && linkHeader.includes('rel="next"');
+      page++;
+    }
+
+    return allData;
+  }
+
+  saveToCache(orgName, data) {
+    const cache = {
+      timestamp: new Date().getTime(),
+      orgName,
+      data,
+    };
+    localStorage.setItem(this.CACHE_KEY, JSON.stringify(cache));
+  }
+
+  getFromCache(orgName) {
+    const cached = localStorage.getItem(this.CACHE_KEY);
+    if (!cached) return null;
+
+    const cache = JSON.parse(cached);
+    const now = new Date().getTime();
+
+    // Check if cache is expired or for different org
+    if (
+      cache.orgName !== orgName ||
+      now - cache.timestamp > this.CACHE_EXPIRATION
+    ) {
+      localStorage.removeItem(this.CACHE_KEY);
+      return null;
+    }
+
+    return cache.data;
   }
 
   async getOrganization(orgName) {
+    // Try to get data from cache first
+    const cachedData = this.getFromCache(orgName);
+    if (cachedData) {
+      return cachedData;
+    }
+
     const currentYear = new Date().getFullYear();
     const startOfYear = `${currentYear}-01-01T00:00:00Z`;
 
@@ -15,7 +68,12 @@ export class GithubRepository {
       this.getYearlyStats(orgName, startOfYear),
     ]);
 
-    return { repos, members, yearlyStats };
+    const result = { repos, members, yearlyStats };
+
+    // Save the fresh data to cache
+    this.saveToCache(orgName, result);
+
+    return result;
   }
 
   async getRepositories(orgName, onProgress) {
@@ -109,13 +167,15 @@ export class GithubRepository {
         const pulls = await this.client.rest.pulls.list({
           owner: orgName,
           repo: repo.name,
-          state: 'all',
+          state: "all",
           per_page: 100,
         });
 
-        pulls.data.forEach(pr => {
+        pulls.data.forEach((pr) => {
           const branchName = pr.head.ref;
-          const type = branchName.split('/')[0];
+          const type = branchName.includes("/")
+            ? branchName.split("/")[0]
+            : "unknown";
           if (type && new Date(pr.created_at).getFullYear() === currentYear) {
             prTypes[type] = (prTypes[type] || 0) + 1;
           }
@@ -144,7 +204,7 @@ export class GithubRepository {
       pullRequests: {
         opened: repoStats.reduce((sum, repo) => sum + repo.pulls.opened, 0),
         closed: repoStats.reduce((sum, repo) => sum + repo.pulls.closed, 0),
-        types: prTypes
+        types: prTypes,
       },
     };
   }
@@ -179,25 +239,19 @@ export class GithubRepository {
   async getIssues(owner, repo, since) {
     try {
       const [opened, closed] = await Promise.all([
-        this.client.rest.issues.listForRepo({
-          owner,
-          repo,
-          state: "all",
-          since,
-          per_page: 100,
-        }),
-        this.client.rest.issues.listForRepo({
-          owner,
-          repo,
-          state: "closed",
-          since,
-          per_page: 100,
-        }),
+        this.getAllPages(
+          this.client.rest.issues.listForRepo.bind(this.client.rest.issues),
+          { owner, repo, state: "all", since },
+        ),
+        this.getAllPages(
+          this.client.rest.issues.listForRepo.bind(this.client.rest.issues),
+          { owner, repo, state: "closed", since },
+        ),
       ]);
 
       return {
-        opened: opened.data.length,
-        closed: closed.data.length,
+        opened: opened.length,
+        closed: closed.length,
       };
     } catch (error) {
       return { opened: 0, closed: 0 };
@@ -207,31 +261,35 @@ export class GithubRepository {
   async getPullRequests(owner, repo, since) {
     try {
       const [opened, closed] = await Promise.all([
-        this.client.rest.pulls.list({
-          owner,
-          repo,
-          state: "all",
-          sort: "created",
-          direction: "desc",
-          per_page: 100,
-        }),
-        this.client.rest.pulls.list({
-          owner,
-          repo,
-          state: "closed",
-          sort: "created",
-          direction: "desc",
-          per_page: 100,
-        }),
+        this.getAllPages(
+          this.client.rest.pulls.list.bind(this.client.rest.pulls),
+          {
+            owner,
+            repo,
+            state: "all",
+            sort: "created",
+            direction: "desc",
+          },
+        ),
+        this.getAllPages(
+          this.client.rest.pulls.list.bind(this.client.rest.pulls),
+          {
+            owner,
+            repo,
+            state: "closed",
+            sort: "created",
+            direction: "desc",
+          },
+        ),
       ]);
 
       const currentYear = new Date().getFullYear();
 
       return {
-        opened: opened.data.filter(
+        opened: opened.filter(
           (pr) => new Date(pr.created_at).getFullYear() === currentYear,
         ).length,
-        closed: closed.data.filter(
+        closed: closed.filter(
           (pr) => new Date(pr.closed_at).getFullYear() === currentYear,
         ).length,
       };
@@ -241,22 +299,18 @@ export class GithubRepository {
   }
 
   async getMembers(orgName) {
-    const { data: members } = await this.client.rest.orgs.listMembers({
-      org: orgName,
-      per_page: 100,
-    });
-    return members;
+    return await this.getAllPages(
+      this.client.rest.orgs.listMembers.bind(this.client.rest.orgs),
+      { org: orgName },
+    );
   }
 
   async getContributors(owner, repo) {
     try {
-      const { data: contributors } =
-        await this.client.rest.repos.listContributors({
-          owner,
-          repo,
-          per_page: 100,
-        });
-      return contributors;
+      return await this.getAllPages(
+        this.client.rest.repos.listContributors.bind(this.client.rest.repos),
+        { owner, repo },
+      );
     } catch (error) {
       return [];
     }
