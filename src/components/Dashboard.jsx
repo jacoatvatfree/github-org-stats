@@ -199,7 +199,7 @@ export default function Dashboard({ credentials }) {
       <div className="mt-8">
         <button
           onClick={() => setShowJson(!showJson)}
-          className="mb-4 px-4 py-2 bg-primary-500 hover:bg-primary-600 rounded-lg text-white transition-colors"
+          className="mb-4 px-4 py-2 bg-primary-500 hover:bg-primary-600 rounded-lg text-white transition-colors print:hidden"
         >
           {showJson ? "Hide" : "Show"} JSON Data
         </button>
