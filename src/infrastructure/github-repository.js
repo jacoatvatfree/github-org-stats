@@ -167,10 +167,11 @@ export class GithubRepository {
     }));
 
     const result = {
-      repos: repoStats.map(({ name, stars, contributorStats }) => ({
+      repos: repoStats.map(({ name, stars, contributorStats, issues }) => ({
         name,
         stars,
         contributors: contributorStats?.length || 0,
+        closedIssues: issues.closed || 0,
         commitCount:
           contributorStats?.reduce(
             (sum, contributor) =>

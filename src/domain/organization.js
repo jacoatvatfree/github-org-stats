@@ -22,9 +22,10 @@ export class Organization {
       .filter((repo) => !repo.fork)
       .sort((a, b) => (b.commitCount || 0) - (a.commitCount || 0))
       .slice(0, limit)
-      .map(({ name, commitCount }) => ({
+      .map(({ name, commitCount, closedIssues }) => ({
         name,
         commitCount: commitCount || 0,
+        closedIssues: closedIssues || 0,
       }));
   }
 

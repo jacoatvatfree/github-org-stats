@@ -88,7 +88,7 @@ export default function Dashboard({ credentials }) {
   return (
     <div className="max-w-7xl mx-auto">
       <h1 className="text-3xl font-bold text-gray-900 mb-8">
-        {credentials.organization} Overview
+        {credentials.organization} overview
       </h1>
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-8">
@@ -139,10 +139,16 @@ export default function Dashboard({ credentials }) {
                 className="flex justify-between items-center"
               >
                 <span className="text-gray-900">{repo.name}</span>
-                <span className="flex items-center text-gray-600">
-                  <CodeBracketIcon className="h-4 w-4 mr-1" />
-                  {repo.commitCount || 0}
-                </span>
+                <div className="flex items-center space-x-4">
+                  <span className="flex items-center text-gray-600">
+                    <ChatBubbleBottomCenterTextIcon className="h-4 w-4 mr-1" />
+                    {repo.closedIssues}
+                  </span>
+                  <span className="flex items-center text-gray-600">
+                    <CodeBracketIcon className="h-4 w-4 mr-1" />
+                    {repo.commitCount || 0}
+                  </span>
+                </div>
               </div>
             ))}
           </div>
@@ -171,7 +177,7 @@ export default function Dashboard({ credentials }) {
         <div className="bg-white p-6 rounded-xl shadow-sm">
           <h2 className="text-xl font-semibold mb-4 flex items-center">
             <ArrowsRightLeftIcon className="h-5 w-5 mr-2" />
-            Pull Request Types
+            Pull Requests by Type
           </h2>
           <div className="space-y-4">
             {Object.entries(data.prTypeStats)
