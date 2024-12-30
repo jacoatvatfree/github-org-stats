@@ -58,7 +58,7 @@ export default function LoginForm({ onSubmit }) {
           </div>
           <button
             type="submit"
-            className="w-full bg-blue-600 text-white rounded-md px-4 py-2 hover:bg-blue-700"
+            className="w-full bg-primary-600 text-white rounded-md px-4 py-2 hover:bg-primary-700"
           >
             Analyze Organization
           </button>

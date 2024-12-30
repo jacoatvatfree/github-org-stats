@@ -66,13 +66,13 @@ export default function Dashboard({ credentials }) {
   if (loading || !data) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
         <div className="text-gray-600 text-lg">{loadingMessage}</div>
         {progress.total > 0 && (
           <div className="mt-4 w-64">
-            <div className="bg-gray-200 rounded-full h-2.5">
+            <div className="bg-primary-100 rounded-full h-2.5">
               <div
-                className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+                className="bg-primary-500 h-2.5 rounded-full transition-all duration-300"
                 style={{
                   width: `${(progress.current / progress.total) * 100}%`,
                 }}
@@ -88,7 +88,7 @@ export default function Dashboard({ credentials }) {
 
   return (
     <div className="max-w-7xl mx-auto">
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">
+      <h1 className="text-3xl font-bold text-primary-500 mb-8">
         {credentials.organization} overview
       </h1>
 
@@ -97,7 +97,7 @@ export default function Dashboard({ credentials }) {
         <StatCard title="Members" value={data.memberCount} icon={UsersIcon} />
       </div>
 
-      <h2 className="text-2xl font-bold text-gray-900 mb-6">
+      <h2 className="text-2xl font-bold text-secondary-500 mb-6">
         {currentYear} Statistics
       </h2>
 
@@ -128,8 +128,8 @@ export default function Dashboard({ credentials }) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm">
-          <h2 className="text-xl font-semibold mb-4 flex items-center">
+        <div className="bg-gradient-to-br from-white to-secondary-50 p-6 rounded-xl shadow-sm">
+          <h2 className="text-xl font-semibold mb-4 flex items-center text-primary-500">
             <CodeBracketIcon className="h-5 w-5 mr-2" />
             Top Repositories
           </h2>
@@ -137,7 +137,7 @@ export default function Dashboard({ credentials }) {
             {data.topReposByCommits.map((repo) => (
               <div
                 key={repo.name}
-                className="flex justify-between items-center"
+                className="flex justify-between items-center hover:bg-white/50 p-2 rounded-lg transition-colors"
               >
                 <span className="text-gray-900">{repo.name}</span>
                 <div className="flex items-center space-x-4">
@@ -155,8 +155,8 @@ export default function Dashboard({ credentials }) {
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-xl shadow-sm">
-          <h2 className="text-xl font-semibold mb-4 flex items-center">
+        <div className="bg-gradient-to-br from-white to-secondary-50 p-6 rounded-xl shadow-sm">
+          <h2 className="text-xl font-semibold mb-4 flex items-center text-primary-500">
             <ChartBarIcon className="h-5 w-5 mr-2" />
             Top Organization Members
           </h2>
@@ -164,7 +164,7 @@ export default function Dashboard({ credentials }) {
             {data.topMembers.map((member) => (
               <div
                 key={member.login}
-                className="flex justify-between items-center"
+                className="flex justify-between items-center hover:bg-white/50 p-2 rounded-lg transition-colors"
               >
                 <span className="text-gray-900">{member.login}</span>
                 <span className="text-gray-600">
@@ -175,8 +175,8 @@ export default function Dashboard({ credentials }) {
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-xl shadow-sm">
-          <h2 className="text-xl font-semibold mb-4 flex items-center">
+        <div className="bg-gradient-to-br from-white to-secondary-50 p-6 rounded-xl shadow-sm">
+          <h2 className="text-xl font-semibold mb-4 flex items-center text-primary-500">
             <ArrowsRightLeftIcon className="h-5 w-5 mr-2" />
             Pull Requests by Type
           </h2>
@@ -184,7 +184,10 @@ export default function Dashboard({ credentials }) {
             {Object.entries(data.prTypeStats)
               .filter(([type, count]) => count > 5)
               .map(([type, count]) => (
-                <div key={type} className="flex justify-between items-center">
+                <div
+                  key={type}
+                  className="flex justify-between items-center hover:bg-white/50 p-2 rounded-lg transition-colors"
+                >
                   <span className="text-gray-900">{type}</span>
                   <span className="text-gray-600">{count} PRs</span>
                 </div>
@@ -196,13 +199,13 @@ export default function Dashboard({ credentials }) {
       <div className="mt-8">
         <button
           onClick={() => setShowJson(!showJson)}
-          className="mb-4 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 transition-colors"
+          className="mb-4 px-4 py-2 bg-primary-500 hover:bg-primary-600 rounded-lg text-white transition-colors"
         >
           {showJson ? "Hide" : "Show"} JSON Data
         </button>
 
         {showJson && (
-          <pre className="bg-gray-50 p-4 rounded-lg overflow-auto max-h-96">
+          <pre className="bg-gradient-to-br from-white to-primary-50 p-4 rounded-lg overflow-auto max-h-96">
             {JSON.stringify(data, null, 2)}
           </pre>
         )}
@@ -213,10 +216,10 @@ export default function Dashboard({ credentials }) {
 
 function StatCard({ title, value, subtitle, icon: Icon }) {
   return (
-    <div className="bg-white p-6 rounded-xl shadow-sm">
+    <div className="bg-gradient-to-br from-white to-secondary-50 p-6 rounded-xl shadow-sm hover:shadow-gb transition-shadow">
       <div className="flex items-center">
-        <div className="p-2 bg-blue-50 rounded-lg">
-          <Icon className="h-6 w-6 text-blue-600" />
+        <div className="p-2 bg-primary-100 rounded-lg">
+          <Icon className="h-6 w-6 text-primary-500" />
         </div>
       </div>
       <p className="mt-4 text-2xl font-semibold text-gray-900">{value}</p>
