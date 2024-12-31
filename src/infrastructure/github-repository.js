@@ -1,6 +1,6 @@
-import { GitHubApiClient } from './github/api-client';
-import { CacheManager } from './github/cache-manager';
-import { StatsCalculator } from './github/stats-calculator';
+import { GitHubApiClient } from "./github/api-client";
+import { CacheManager } from "./github/cache-manager";
+import { StatsCalculator } from "./github/stats-calculator";
 
 export class GithubRepository {
   constructor(token) {
@@ -35,21 +35,23 @@ export class GithubRepository {
     const repoStats = await Promise.all(
       ownRepos.map(async (repo) => {
         try {
-          const [contributorStats, issues, pullRequests] = await Promise.all([
-            this.api.getContributorStats(orgName, repo.name),
-            this.api.getIssues(orgName, repo.name, fromDate.toISOString()),
-            this.api.getPullRequests(orgName, repo.name),
-          ]);
+          const [contributorStats, issues, pullRequests, currentOpenIssues] =
+            await Promise.all([
+              this.api.getContributorStats(orgName, repo.name),
+              this.api.getIssues(orgName, repo.name, fromDate.toISOString()),
+              this.api.getPullRequests(orgName, repo.name),
+              this.api.getCurrentOpenIssues(orgName, repo.name),
+            ]);
 
           // Filter issues and PRs by date range
           const filteredIssues = issues
             .filter((item) => !item.pull_request)
-            .filter(item => {
+            .filter((item) => {
               const createdAt = new Date(item.created_at);
               return createdAt >= fromDate && createdAt <= toDate;
             });
 
-          const filteredPRs = pullRequests.filter(item => {
+          const filteredPRs = pullRequests.filter((item) => {
             const createdAt = new Date(item.created_at);
             return createdAt >= fromDate && createdAt <= toDate;
           });
@@ -65,8 +67,14 @@ export class GithubRepository {
             contributorStats,
             issues: {
               opened: filteredIssues.length,
-              closed: filteredIssues.filter((item) => item.state === "closed").length,
-              monthlyStats: StatsCalculator.calculateMonthlyIssueStats(filteredIssues, fromDate, toDate)
+              closed: filteredIssues.filter((item) => item.state === "closed")
+                .length,
+              monthlyStats: StatsCalculator.calculateMonthlyIssueStats(
+                filteredIssues,
+                fromDate,
+                toDate,
+                currentOpenIssues.length,
+              ),
             },
             pullRequests: {
               opened: filteredPRs.length,
@@ -95,7 +103,7 @@ export class GithubRepository {
           const login = contributor.author?.login;
           if (login) {
             const filteredCommits = contributor.weeks
-              .filter(week => {
+              .filter((week) => {
                 const weekDate = new Date(week.w * 1000);
                 return weekDate >= fromDate && weekDate <= toDate;
               })
@@ -122,7 +130,7 @@ export class GithubRepository {
             (sum, contributor) =>
               sum +
               contributor.weeks
-                .filter(week => {
+                .filter((week) => {
                   const weekDate = new Date(week.w * 1000);
                   return weekDate >= fromDate && weekDate <= toDate;
                 })
@@ -131,20 +139,29 @@ export class GithubRepository {
           ) || 0,
       })),
       members: enhancedMembers,
-      yearlyStats: StatsCalculator.calculateYearlyStats(repoStats, fromDate, toDate),
-      monthlyIssueStats: repoStats.reduce((acc, repo) => {
-        if (!repo.issues.monthlyStats) return acc;
-        
-        repo.issues.monthlyStats.forEach((month, index) => {
-          if (!acc[index]) {
-            acc[index] = { opened: 0, closed: 0, total: 0 };
-          }
-          acc[index].opened += month.opened;
-          acc[index].closed += month.closed;
-          acc[index].total += month.total;
-        });
-        return acc;
-      }, Array(12).fill().map(() => ({ opened: 0, closed: 0, total: 0 })))
+      yearlyStats: StatsCalculator.calculateYearlyStats(
+        repoStats,
+        fromDate,
+        toDate,
+      ),
+      monthlyIssueStats: repoStats.reduce(
+        (acc, repo) => {
+          if (!repo.issues.monthlyStats) return acc;
+
+          repo.issues.monthlyStats.forEach((month, index) => {
+            if (!acc[index]) {
+              acc[index] = { opened: 0, closed: 0, total: 0 };
+            }
+            acc[index].opened += month.opened;
+            acc[index].closed += month.closed;
+            acc[index].total += month.total;
+          });
+          return acc;
+        },
+        Array(12)
+          .fill()
+          .map(() => ({ opened: 0, closed: 0, total: 0 })),
+      ),
     };
 
     // Save the fresh data to cache

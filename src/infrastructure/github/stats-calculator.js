@@ -1,45 +1,72 @@
 export class StatsCalculator {
-  static calculateMonthlyIssueStats(issues, fromDate, toDate) {
-    const monthDiff = (toDate.getMonth() - fromDate.getMonth()) + 
-                     (12 * (toDate.getFullYear() - fromDate.getFullYear())) + 1;
-    
-    const monthlyStats = Array(monthDiff).fill().map(() => ({
-      opened: 0,
-      closed: 0,
-      total: 0
-    }));
+  static calculateMonthlyIssueStats(
+    issues,
+    fromDate,
+    toDate,
+    currentOpenIssueCount,
+  ) {
+    const monthDiff =
+      toDate.getMonth() -
+      fromDate.getMonth() +
+      12 * (toDate.getFullYear() - fromDate.getFullYear()) +
+      1;
 
-    const sortedIssues = [...issues]
-      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    const monthlyStats = Array(monthDiff)
+      .fill()
+      .map(() => ({
+        opened: 0,
+        closed: 0,
+        total: 0,
+      }));
+
+    const sortedIssues = [...issues].sort(
+      (a, b) => new Date(a.created_at) - new Date(b.created_at),
+    );
 
     let runningTotal = 0;
 
-    sortedIssues.forEach(issue => {
+    sortedIssues.forEach((issue) => {
       const createdDate = new Date(issue.created_at);
       const closedDate = issue.closed_at ? new Date(issue.closed_at) : null;
-      
+
       if (createdDate >= fromDate && createdDate <= toDate) {
-        const monthIndex = (createdDate.getMonth() - fromDate.getMonth()) + 
-                         (12 * (createdDate.getFullYear() - fromDate.getFullYear()));
+        const monthIndex =
+          createdDate.getMonth() -
+          fromDate.getMonth() +
+          12 * (createdDate.getFullYear() - fromDate.getFullYear());
         monthlyStats[monthIndex].opened++;
         runningTotal++;
       }
 
       if (closedDate && closedDate >= fromDate && closedDate <= toDate) {
-        const monthIndex = (closedDate.getMonth() - fromDate.getMonth()) + 
-                         (12 * (closedDate.getFullYear() - fromDate.getFullYear()));
+        const monthIndex =
+          closedDate.getMonth() -
+          fromDate.getMonth() +
+          12 * (closedDate.getFullYear() - fromDate.getFullYear());
         monthlyStats[monthIndex].closed++;
         runningTotal--;
       }
 
       // Update running total for all months after this issue
       if (createdDate >= fromDate && createdDate <= toDate) {
-        const monthIndex = (createdDate.getMonth() - fromDate.getMonth()) + 
-                         (12 * (createdDate.getFullYear() - fromDate.getFullYear()));
+        const monthIndex =
+          createdDate.getMonth() -
+          fromDate.getMonth() +
+          12 * (createdDate.getFullYear() - fromDate.getFullYear());
         for (let i = monthIndex; i < monthlyStats.length; i++) {
           monthlyStats[i].total = runningTotal;
         }
       }
+    });
+
+    const lastMonthIndex =
+      toDate.getMonth() -
+      fromDate.getMonth() +
+      12 * (toDate.getFullYear() - fromDate.getFullYear());
+    const padding = currentOpenIssueCount - monthlyStats[lastMonthIndex].total;
+
+    monthlyStats.forEach((stat, i) => {
+      stat.total += padding;
     });
 
     return monthlyStats;
@@ -68,17 +95,15 @@ export class StatsCalculator {
   static calculateYearlyStats(repoStats, fromDate, toDate) {
     return {
       repositories: {
-        created: repoStats.filter(
-          (repo) => {
-            const createdAt = new Date(repo.createdAt);
-            return createdAt >= fromDate && createdAt <= toDate;
-          }
-        ).length,
+        created: repoStats.filter((repo) => {
+          const createdAt = new Date(repo.createdAt);
+          return createdAt >= fromDate && createdAt <= toDate;
+        }).length,
         archived: repoStats.filter(
           (repo) =>
-            repo.archivedAt && 
-            new Date(repo.archivedAt) >= fromDate && 
-            new Date(repo.archivedAt) <= toDate
+            repo.archivedAt &&
+            new Date(repo.archivedAt) >= fromDate &&
+            new Date(repo.archivedAt) <= toDate,
         ).length,
       },
       commits: repoStats.reduce(
@@ -88,12 +113,10 @@ export class StatsCalculator {
             (total, contributor) =>
               total +
               contributor.weeks
-                .filter(
-                  (week) => {
-                    const weekDate = new Date(week.w * 1000);
-                    return weekDate >= fromDate && weekDate <= toDate;
-                  }
-                )
+                .filter((week) => {
+                  const weekDate = new Date(week.w * 1000);
+                  return weekDate >= fromDate && weekDate <= toDate;
+                })
                 .reduce((weekSum, week) => weekSum + week.c, 0),
             0,
           ) || 0),

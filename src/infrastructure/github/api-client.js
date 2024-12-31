@@ -25,7 +25,7 @@ export class GitHubApiClient {
   async getMembers(orgName) {
     return await this.getAllPages(
       this.client.rest.orgs.listMembers.bind(this.client.rest.orgs),
-      { org: orgName }
+      { org: orgName },
     );
   }
 
@@ -36,7 +36,7 @@ export class GitHubApiClient {
         org: orgName,
         sort: "updated",
         type: "all",
-      }
+      },
     );
   }
 
@@ -46,9 +46,9 @@ export class GitHubApiClient {
       {
         owner,
         repo,
-        state: 'all',
+        state: "all",
         since,
-      }
+      },
     );
   }
 
@@ -61,8 +61,27 @@ export class GitHubApiClient {
         state: "closed",
         sort: "created",
         direction: "desc",
-      }
+      },
     );
+  }
+
+  async getCurrentOpenIssues(owner, repo) {
+    try {
+      const issues = await this.getAllPages(
+        this.client.rest.issues.listForRepo.bind(this.client.rest.issues),
+        {
+          owner,
+          repo,
+          state: "open",
+        },
+      );
+
+      // Filter out pull requests
+      return issues.filter((issue) => !issue.pull_request);
+    } catch (error) {
+      console.warn(`Failed to get open issues for ${repo}:`, error);
+      return [];
+    }
   }
 
   async getContributorStats(owner, repo, retries = 3) {
@@ -79,6 +98,7 @@ export class GitHubApiClient {
         return this.getContributorStats(owner, repo, retries - 1);
       }
 
+      // Note: getContributorsStats doesn't need getAllPages as it returns complete stats in one call
       return Array.isArray(response.data) ? response.data : [];
     } catch (error) {
       console.warn(`Failed to get contributor stats for ${repo}:`, error);
