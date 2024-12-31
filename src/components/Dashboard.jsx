@@ -104,7 +104,11 @@ export default function Dashboard({ credentials }) {
           />
           <StatCard title="Members" value={data.memberCount} icon={UsersIcon} />
         </div>
-        <div className="lg:col-span-2 bg-gradient-to-br from-white to-secondary-50 p-6 rounded-xl shadow-sm">
+        <div className="lg:col-span-2 bg-gradient-to-br from-white to-secondary-50 p-6 rounded-xl shadow-sm hover:shadow-gb transition-shadow">
+          <h2 className="text-xl font-semibold mb-4 flex items-center text-primary-500">
+            <ChatBubbleBottomCenterTextIcon className="h-5 w-5 mr-2" />
+            Issues Burn Up
+          </h2>
           <BurnupChart monthlyStats={data.monthlyIssueStats} />
         </div>
       </div>
@@ -140,7 +144,7 @@ export default function Dashboard({ credentials }) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-gradient-to-br from-white to-secondary-50 p-6 rounded-xl shadow-sm">
+        <div className="bg-gradient-to-br from-white to-secondary-50 p-6 rounded-xl shadow-sm hover:shadow-gb transition-shadow">
           <h2 className="text-xl font-semibold mb-4 flex items-center text-primary-500">
             <CodeBracketIcon className="h-5 w-5 mr-2" />
             Top Repositories
@@ -167,7 +171,7 @@ export default function Dashboard({ credentials }) {
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-white to-secondary-50 p-6 rounded-xl shadow-sm">
+        <div className="bg-gradient-to-br from-white to-secondary-50 p-6 rounded-xl shadow-sm hover:shadow-gb transition-shadow">
           <h2 className="text-xl font-semibold mb-4 flex items-center text-primary-500">
             <ChartBarIcon className="h-5 w-5 mr-2" />
             Top Organization Members
@@ -186,8 +190,13 @@ export default function Dashboard({ credentials }) {
             ))}
           </div>
         </div>
-
-        <PullRequestTypeChart prTypeStats={data.prTypeStats} />
+        <div className="bg-gradient-to-br from-white to-secondary-50 p-6 rounded-xl shadow-sm hover:shadow-gb transition-shadow">
+          <h2 className="text-xl font-semibold mb-4 flex items-center text-primary-500">
+            <ArrowsRightLeftIcon className="h-5 w-5 mr-2" />
+            Pull Requests by Type
+          </h2>
+          <PullRequestTypeChart prTypeStats={data.prTypeStats} />
+        </div>
       </div>
 
       <div className="mt-8">
