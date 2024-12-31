@@ -11,7 +11,8 @@ import {
   ArrowsRightLeftIcon,
 } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
-import BurnupChart from './BurnupChart';
+import BurnupChart from "./BurnupChart";
+import PullRequestTypeChart from "./PullRequestTypeChart";
 
 export default function Dashboard({ credentials }) {
   const [data, setData] = useState(null);
@@ -94,9 +95,18 @@ export default function Dashboard({ credentials }) {
         {credentials.organization} overview
       </h1>
 
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-8">
-        <StatCard title="Total Stars" value={data.totalStars} icon={StarIcon} />
-        <StatCard title="Members" value={data.memberCount} icon={UsersIcon} />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <div className="lg:col-span-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-6">
+          <StatCard
+            title="Total Stars"
+            value={data.totalStars}
+            icon={StarIcon}
+          />
+          <StatCard title="Members" value={data.memberCount} icon={UsersIcon} />
+        </div>
+        <div className="lg:col-span-2 bg-gradient-to-br from-white to-secondary-50 p-6 rounded-xl shadow-sm">
+          <BurnupChart monthlyStats={data.monthlyIssueStats} />
+        </div>
       </div>
 
       <h2 className="text-2xl font-bold text-secondary-500 mb-6">
@@ -177,9 +187,7 @@ export default function Dashboard({ credentials }) {
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-white to-secondary-50 p-6 rounded-xl shadow-sm">
-          <BurnupChart monthlyStats={data.monthlyIssueStats} />
-        </div>
+        <PullRequestTypeChart prTypeStats={data.prTypeStats} />
       </div>
 
       <div className="mt-8">
