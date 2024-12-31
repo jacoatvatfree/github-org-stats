@@ -10,12 +10,10 @@ export default function PullRequestTypeChart({ prTypeStats }) {
       <Pie
         data={{
           labels: Object.entries(prTypeStats)
-            .filter(([_, count]) => count > 5)
             .map(([type]) => type),
           datasets: [
             {
               data: Object.entries(prTypeStats)
-                .filter(([_, count]) => count > 5)
                 .map(([_, count]) => count),
               backgroundColor: [
                 "#60A5FA", // blue-400

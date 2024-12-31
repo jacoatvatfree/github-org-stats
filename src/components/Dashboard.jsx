@@ -29,6 +29,10 @@ export default function Dashboard({ credentials }) {
 
         const orgData = await repo.getOrganization(
           credentials.organization,
+          {
+            fromDate: credentials.fromDate,
+            toDate: credentials.toDate
+          },
           (current, total) => {
             setProgress({ current, total });
             setLoadingMessage(
@@ -87,13 +91,16 @@ export default function Dashboard({ credentials }) {
     );
   }
 
-  const currentYear = new Date().getFullYear();
-
   return (
     <div className="max-w-7xl mx-auto">
-      <h1 className="text-3xl font-bold text-primary-500 mb-8">
-        {credentials.organization} overview
-      </h1>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold text-primary-500">
+          {credentials.organization} overview
+        </h1>
+        <div className="text-sm text-gray-600">
+          {new Date(credentials.fromDate).toLocaleDateString()} - {new Date(credentials.toDate).toLocaleDateString()}
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         <div className="lg:col-span-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-6">
@@ -109,12 +116,12 @@ export default function Dashboard({ credentials }) {
             <ChatBubbleBottomCenterTextIcon className="h-5 w-5 mr-2" />
             Issues Burn Up
           </h2>
-          <BurnupChart monthlyStats={data.monthlyIssueStats} />
+          <BurnupChart monthlyStats={data.monthlyIssueStats} fromDate={credentials.fromDate} toDate={credentials.toDate} />
         </div>
       </div>
 
       <h2 className="text-2xl font-bold text-secondary-500 mb-6">
-        {currentYear} Statistics
+        Statistics
       </h2>
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-8">

@@ -20,37 +20,28 @@ ChartJS.register(
   Legend,
 );
 
-export default function BurnupChart({ monthlyStats = [] }) {
-  const months = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-  ];
+export default function BurnupChart({ monthlyStats = [], fromDate, toDate }) {
+  const startDate = new Date(fromDate);
+  const endDate = new Date(toDate);
+  
+  const labels = [];
+  let currentDate = new Date(startDate);
+  
+  while (currentDate <= endDate) {
+    labels.push(currentDate.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }));
+    currentDate.setMonth(currentDate.getMonth() + 1);
+  }
 
-  const currentMonth = new Date().getMonth();
-  const labels = months.slice(0, currentMonth + 1);
-
-  // Ensure we have data and it's an array
   const validStats = Array.isArray(monthlyStats)
     ? monthlyStats
-    : Array(12).fill({ opened: 0, closed: 0, total: 0 });
-  const currentStats = validStats.slice(0, currentMonth + 1);
+    : Array(labels.length).fill({ opened: 0, closed: 0, total: 0 });
 
   const data = {
     labels,
     datasets: [
       {
         label: "Total Open Issues",
-        data: currentStats.map((stat) => stat?.total ?? 0),
+        data: validStats.map((stat) => stat?.total ?? 0),
         borderColor: "rgb(176, 24, 103)", // primary color
         backgroundColor: "rgba(176, 24, 103, 0.1)",
         fill: true,
@@ -58,14 +49,14 @@ export default function BurnupChart({ monthlyStats = [] }) {
       },
       {
         label: "Opened Issues",
-        data: currentStats.map((stat) => stat?.opened ?? 0),
+        data: validStats.map((stat) => stat?.opened ?? 0),
         borderColor: "rgb(0, 105, 179)", // secondary color
         backgroundColor: "rgba(0, 105, 179, 0.5)",
         borderDash: [5, 5],
       },
       {
         label: "Closed Issues",
-        data: currentStats.map((stat) => stat?.closed ?? 0),
+        data: validStats.map((stat) => stat?.closed ?? 0),
         borderColor: "rgb(75, 192, 192)",
         backgroundColor: "rgba(75, 192, 192, 0.5)",
         borderDash: [5, 5],

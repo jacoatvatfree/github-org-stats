@@ -1,14 +1,15 @@
 export class StatsCalculator {
-  static calculateMonthlyIssueStats(issues, year) {
-    const monthlyStats = Array(12).fill().map(() => ({
+  static calculateMonthlyIssueStats(issues, fromDate, toDate) {
+    const monthDiff = (toDate.getMonth() - fromDate.getMonth()) + 
+                     (12 * (toDate.getFullYear() - fromDate.getFullYear())) + 1;
+    
+    const monthlyStats = Array(monthDiff).fill().map(() => ({
       opened: 0,
       closed: 0,
-      total: 0  // Track running total of open issues
+      total: 0
     }));
 
-    // Sort issues by date to calculate running totals
     const sortedIssues = [...issues]
-      .filter(issue => !issue.pull_request) // Exclude PRs
       .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
     let runningTotal = 0;
@@ -17,31 +18,26 @@ export class StatsCalculator {
       const createdDate = new Date(issue.created_at);
       const closedDate = issue.closed_at ? new Date(issue.closed_at) : null;
       
-      // Only process issues from this year or before
-      if (createdDate.getFullYear() <= year) {
-        // If created this year, increment opened count
-        if (createdDate.getFullYear() === year) {
-          const month = createdDate.getMonth();
-          monthlyStats[month].opened++;
-          runningTotal++;
-        } else {
-          // If created before this year, just add to running total
-          runningTotal++;
-        }
+      if (createdDate >= fromDate && createdDate <= toDate) {
+        const monthIndex = (createdDate.getMonth() - fromDate.getMonth()) + 
+                         (12 * (createdDate.getFullYear() - fromDate.getFullYear()));
+        monthlyStats[monthIndex].opened++;
+        runningTotal++;
+      }
 
-        // If closed this year, increment closed count
-        if (closedDate && closedDate.getFullYear() === year) {
-          const month = closedDate.getMonth();
-          monthlyStats[month].closed++;
-          runningTotal--;
-        }
+      if (closedDate && closedDate >= fromDate && closedDate <= toDate) {
+        const monthIndex = (closedDate.getMonth() - fromDate.getMonth()) + 
+                         (12 * (closedDate.getFullYear() - fromDate.getFullYear()));
+        monthlyStats[monthIndex].closed++;
+        runningTotal--;
+      }
 
-        // Update running total for the month
-        if (createdDate.getFullYear() === year) {
-          const month = createdDate.getMonth();
-          for (let i = month; i < 12; i++) {
-            monthlyStats[i].total = runningTotal;
-          }
+      // Update running total for all months after this issue
+      if (createdDate >= fromDate && createdDate <= toDate) {
+        const monthIndex = (createdDate.getMonth() - fromDate.getMonth()) + 
+                         (12 * (createdDate.getFullYear() - fromDate.getFullYear()));
+        for (let i = monthIndex; i < monthlyStats.length; i++) {
+          monthlyStats[i].total = runningTotal;
         }
       }
     });
@@ -52,12 +48,10 @@ export class StatsCalculator {
   static categorizePRTypes(prs) {
     const types = {};
 
-    // Only count closed PRs
     const closedPRs = prs.filter((pr) => pr.state === "closed");
 
     closedPRs.forEach((pr) => {
       if (pr.head?.ref) {
-        // Get type from branch name before the "/" or set as "unknown"
         const type = pr.head.ref.includes("/")
           ? pr.head.ref.split("/")[0].toLowerCase()
           : "unknown";
@@ -71,16 +65,20 @@ export class StatsCalculator {
     return types;
   }
 
-  static calculateYearlyStats(repoStats, currentYear) {
+  static calculateYearlyStats(repoStats, fromDate, toDate) {
     return {
       repositories: {
         created: repoStats.filter(
-          (repo) => new Date(repo.createdAt).getFullYear() === currentYear,
+          (repo) => {
+            const createdAt = new Date(repo.createdAt);
+            return createdAt >= fromDate && createdAt <= toDate;
+          }
         ).length,
         archived: repoStats.filter(
           (repo) =>
-            repo.archivedAt &&
-            new Date(repo.archivedAt).getFullYear() === currentYear,
+            repo.archivedAt && 
+            new Date(repo.archivedAt) >= fromDate && 
+            new Date(repo.archivedAt) <= toDate
         ).length,
       },
       commits: repoStats.reduce(
@@ -91,8 +89,10 @@ export class StatsCalculator {
               total +
               contributor.weeks
                 .filter(
-                  (week) =>
-                    new Date(week.w * 1000).getFullYear() === currentYear,
+                  (week) => {
+                    const weekDate = new Date(week.w * 1000);
+                    return weekDate >= fromDate && weekDate <= toDate;
+                  }
                 )
                 .reduce((weekSum, week) => weekSum + week.c, 0),
             0,

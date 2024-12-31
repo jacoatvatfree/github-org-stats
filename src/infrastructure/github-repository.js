@@ -8,15 +8,16 @@ export class GithubRepository {
     this.cache = new CacheManager();
   }
 
-  async getOrganization(orgName, onProgress) {
+  async getOrganization(orgName, dateRange, onProgress) {
+    const cacheKey = `${orgName}-${dateRange.fromDate}-${dateRange.toDate}`;
     // Try to get data from cache first
-    const cachedData = this.cache.get(orgName);
+    const cachedData = this.cache.get(cacheKey);
     if (cachedData) {
       return cachedData;
     }
 
-    const currentYear = new Date().getFullYear();
-    const startOfYear = `${currentYear}-01-01T00:00:00Z`;
+    const fromDate = new Date(dateRange.fromDate);
+    const toDate = new Date(dateRange.toDate);
 
     // Get all data in parallel
     const [members, allRepos] = await Promise.all([
@@ -36,19 +37,22 @@ export class GithubRepository {
         try {
           const [contributorStats, issues, pullRequests] = await Promise.all([
             this.api.getContributorStats(orgName, repo.name),
-            this.api.getIssues(orgName, repo.name, startOfYear),
+            this.api.getIssues(orgName, repo.name, fromDate.toISOString()),
             this.api.getPullRequests(orgName, repo.name),
           ]);
 
-          // Filter issues (exclude PRs)
-          const filteredIssues = issues.filter((item) => !item.pull_request);
-          const yearlyIssues = filteredIssues.filter(
-            (item) => new Date(item.created_at).getFullYear() === currentYear
-          );
+          // Filter issues and PRs by date range
+          const filteredIssues = issues
+            .filter((item) => !item.pull_request)
+            .filter(item => {
+              const createdAt = new Date(item.created_at);
+              return createdAt >= fromDate && createdAt <= toDate;
+            });
 
-          const yearlyPRs = pullRequests.filter(
-            (item) => new Date(item.created_at).getFullYear() === currentYear,
-          );
+          const filteredPRs = pullRequests.filter(item => {
+            const createdAt = new Date(item.created_at);
+            return createdAt >= fromDate && createdAt <= toDate;
+          });
 
           processed++;
           if (onProgress) {
@@ -60,14 +64,14 @@ export class GithubRepository {
             stars: repo.stargazers_count,
             contributorStats,
             issues: {
-              opened: yearlyIssues.length,
-              closed: yearlyIssues.filter((item) => item.state === "closed").length,
-              monthlyStats: StatsCalculator.calculateMonthlyIssueStats(filteredIssues, currentYear)
+              opened: filteredIssues.length,
+              closed: filteredIssues.filter((item) => item.state === "closed").length,
+              monthlyStats: StatsCalculator.calculateMonthlyIssueStats(filteredIssues, fromDate, toDate)
             },
             pullRequests: {
-              opened: yearlyPRs.length,
-              closed: yearlyPRs.filter((pr) => pr.state === "closed").length,
-              types: StatsCalculator.categorizePRTypes(yearlyPRs),
+              opened: filteredPRs.length,
+              closed: filteredPRs.filter((pr) => pr.state === "closed").length,
+              types: StatsCalculator.categorizePRTypes(filteredPRs),
             },
             createdAt: repo.created_at,
             archivedAt: repo.archived_at,
@@ -83,19 +87,20 @@ export class GithubRepository {
       }),
     ).then((results) => results.filter(Boolean));
 
-    // Calculate member contributions
+    // Calculate member contributions within date range
     const memberStats = {};
     repoStats.forEach((repo) => {
       if (repo.contributorStats) {
         repo.contributorStats.forEach((contributor) => {
           const login = contributor.author?.login;
           if (login) {
-            const yearCommits = contributor.weeks
-              .filter(
-                (week) => new Date(week.w * 1000).getFullYear() === currentYear,
-              )
+            const filteredCommits = contributor.weeks
+              .filter(week => {
+                const weekDate = new Date(week.w * 1000);
+                return weekDate >= fromDate && weekDate <= toDate;
+              })
               .reduce((sum, week) => sum + week.c, 0);
-            memberStats[login] = (memberStats[login] || 0) + yearCommits;
+            memberStats[login] = (memberStats[login] || 0) + filteredCommits;
           }
         });
       }
@@ -116,19 +121,17 @@ export class GithubRepository {
           contributorStats?.reduce(
             (sum, contributor) =>
               sum +
-              contributor.weeks.reduce(
-                (weekSum, week) =>
-                  weekSum +
-                  (new Date(week.w * 1000).getFullYear() === currentYear
-                    ? week.c
-                    : 0),
-                0,
-              ),
+              contributor.weeks
+                .filter(week => {
+                  const weekDate = new Date(week.w * 1000);
+                  return weekDate >= fromDate && weekDate <= toDate;
+                })
+                .reduce((weekSum, week) => weekSum + week.c, 0),
             0,
           ) || 0,
       })),
       members: enhancedMembers,
-      yearlyStats: StatsCalculator.calculateYearlyStats(repoStats, currentYear),
+      yearlyStats: StatsCalculator.calculateYearlyStats(repoStats, fromDate, toDate),
       monthlyIssueStats: repoStats.reduce((acc, repo) => {
         if (!repo.issues.monthlyStats) return acc;
         
@@ -145,9 +148,8 @@ export class GithubRepository {
     };
 
     // Save the fresh data to cache
-    this.cache.save(orgName, result);
+    this.cache.save(cacheKey, result);
 
     return result;
-  
   }
 }
