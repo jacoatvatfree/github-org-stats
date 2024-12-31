@@ -5,16 +5,39 @@ import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
 ChartJS.register(ArcElement, Tooltip, Legend);
 
 export default function PullRequestTypeChart({ prTypeStats }) {
+  const total = Object.values(prTypeStats).reduce(
+    (sum, count) => sum + count,
+    0,
+  );
+  const threshold = total * 0.02; // 2% threshold
+
+  // Separate entries into main types and others
+  const { mainTypes, others } = Object.entries(prTypeStats).reduce(
+    (acc, [type, count]) => {
+      if (count >= threshold) {
+        acc.mainTypes[type] = count;
+      } else {
+        acc.others += count;
+      }
+      return acc;
+    },
+    { mainTypes: {}, others: 0 },
+  );
+
+  // Prepare final data with "Other" category if needed
+  const finalData = {
+    ...mainTypes,
+    ...(others > 0 ? { "(other)": others } : {}),
+  };
+
   return (
     <div className="h-[300px] flex items-center justify-center">
       <Pie
         data={{
-          labels: Object.entries(prTypeStats)
-            .map(([type]) => type),
+          labels: Object.entries(finalData).map(([type]) => type),
           datasets: [
             {
-              data: Object.entries(prTypeStats)
-                .map(([_, count]) => count),
+              data: Object.entries(finalData).map(([_, count]) => count),
               backgroundColor: [
                 "#60A5FA", // blue-400
                 "#34D399", // emerald-400

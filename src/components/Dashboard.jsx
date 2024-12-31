@@ -13,8 +13,9 @@ import {
 import toast from "react-hot-toast";
 import BurnupChart from "./BurnupChart";
 import PullRequestTypeChart from "./PullRequestTypeChart";
+import AISummary from "./AISummary";
 
-export default function Dashboard({ credentials }) {
+export default function Dashboard({ credentials, onReset }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadingMessage, setLoadingMessage] = useState("Initializing...");
@@ -31,7 +32,7 @@ export default function Dashboard({ credentials }) {
           credentials.organization,
           {
             fromDate: credentials.fromDate,
-            toDate: credentials.toDate
+            toDate: credentials.toDate,
           },
           (current, total) => {
             setProgress({ current, total });
@@ -94,11 +95,18 @@ export default function Dashboard({ credentials }) {
   return (
     <div className="max-w-7xl mx-auto">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-primary-500">
+        <h1
+          onClick={onReset}
+          className="text-3xl font-bold text-primary-500 hover:text-primary-600 cursor-pointer transition-colors"
+        >
           {credentials.organization} overview
         </h1>
-        <div className="text-sm text-gray-600">
-          {new Date(credentials.fromDate).toLocaleDateString()} - {new Date(credentials.toDate).toLocaleDateString()}
+        <div
+          onClick={onReset}
+          className="text-sm text-gray-600 hover:text-gray-800 cursor-pointer transition-colors"
+        >
+          {new Date(credentials.fromDate).toLocaleDateString()} -{" "}
+          {new Date(credentials.toDate).toLocaleDateString()}
         </div>
       </div>
 
@@ -116,13 +124,15 @@ export default function Dashboard({ credentials }) {
             <ChatBubbleBottomCenterTextIcon className="h-5 w-5 mr-2" />
             Issues Burn Up
           </h2>
-          <BurnupChart monthlyStats={data.monthlyIssueStats} fromDate={credentials.fromDate} toDate={credentials.toDate} />
+          <BurnupChart
+            monthlyStats={data.monthlyIssueStats}
+            fromDate={credentials.fromDate}
+            toDate={credentials.toDate}
+          />
         </div>
       </div>
 
-      <h2 className="text-2xl font-bold text-secondary-500 mb-6">
-        Statistics
-      </h2>
+      <h2 className="text-2xl font-bold text-secondary-500 mb-6">Statistics</h2>
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-8">
         <StatCard
@@ -180,8 +190,15 @@ export default function Dashboard({ credentials }) {
 
         <div className="bg-gradient-to-br from-white to-secondary-50 p-6 rounded-xl shadow-sm hover:shadow-gb transition-shadow">
           <h2 className="text-xl font-semibold mb-4 flex items-center text-primary-500">
+            <ArrowsRightLeftIcon className="h-5 w-5 mr-2" />
+            Pull Requests by Type
+          </h2>
+          <PullRequestTypeChart prTypeStats={data.prTypeStats} />
+        </div>
+        <div className="bg-gradient-to-br from-white to-secondary-50 p-6 rounded-xl shadow-sm hover:shadow-gb transition-shadow">
+          <h2 className="text-xl font-semibold mb-4 flex items-center text-primary-500">
             <ChartBarIcon className="h-5 w-5 mr-2" />
-            Top Organization Members
+            Top Contributors
           </h2>
           <div className="space-y-4">
             {data.topMembers.map((member) => (
@@ -190,21 +207,17 @@ export default function Dashboard({ credentials }) {
                 className="flex justify-between items-center hover:bg-white/50 p-2 rounded-lg transition-colors"
               >
                 <span className="text-gray-900">{member.login}</span>
-                <span className="text-gray-600">
-                  {member.contributions} contributions
+                <span className="flex items-center text-gray-600">
+                  <CodeBracketIcon className="h-4 w-4 mr-1" />
+                  {member.contributions}
                 </span>
               </div>
             ))}
           </div>
         </div>
-        <div className="bg-gradient-to-br from-white to-secondary-50 p-6 rounded-xl shadow-sm hover:shadow-gb transition-shadow">
-          <h2 className="text-xl font-semibold mb-4 flex items-center text-primary-500">
-            <ArrowsRightLeftIcon className="h-5 w-5 mr-2" />
-            Pull Requests by Type
-          </h2>
-          <PullRequestTypeChart prTypeStats={data.prTypeStats} />
-        </div>
       </div>
+
+      <AISummary data={data} />
 
       <div className="mt-8">
         <button

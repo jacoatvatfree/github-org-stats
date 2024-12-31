@@ -23,12 +23,17 @@ ChartJS.register(
 export default function BurnupChart({ monthlyStats = [], fromDate, toDate }) {
   const startDate = new Date(fromDate);
   const endDate = new Date(toDate);
-  
+
   const labels = [];
   let currentDate = new Date(startDate);
-  
+
   while (currentDate <= endDate) {
-    labels.push(currentDate.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }));
+    labels.push(
+      currentDate.toLocaleDateString("en-US", {
+        month: "short",
+        year: "2-digit",
+      }),
+    );
     currentDate.setMonth(currentDate.getMonth() + 1);
   }
 
@@ -66,7 +71,7 @@ export default function BurnupChart({ monthlyStats = [], fromDate, toDate }) {
 
   const options = {
     responsive: true,
-    maintainAspectRatio: false,
+    maintainAspectRatio: true,
     plugins: {
       legend: {
         position: "top",
@@ -99,7 +104,7 @@ export default function BurnupChart({ monthlyStats = [], fromDate, toDate }) {
   };
 
   return (
-    <div className="h-[300px]">
+    <div className="h-[300px] print:h-auto print:w-full print:max-w-full">
       <Line options={options} data={data} />
     </div>
   );

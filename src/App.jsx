@@ -10,7 +10,10 @@ function App() {
       {!credentials ? (
         <LoginForm onSubmit={setCredentials} />
       ) : (
-        <Dashboard credentials={credentials} />
+        <Dashboard
+          credentials={credentials}
+          onReset={() => setCredentials(null)}
+        />
       )}
     </div>
   );
