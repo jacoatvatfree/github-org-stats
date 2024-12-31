@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { GithubRepository } from "../infrastructure/github-repository";
 import { Organization } from "../domain/organization";
 import {
@@ -11,6 +11,7 @@ import {
   ArrowsRightLeftIcon,
 } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
+import BurnupChart from './BurnupChart';
 
 export default function Dashboard({ credentials }) {
   const [data, setData] = useState(null);
@@ -52,6 +53,7 @@ export default function Dashboard({ credentials }) {
           memberCount: organization.members.length,
           yearlyStats: organization.getYearlyStats(),
           prTypeStats: organization.getPullRequestTypeStats(),
+          monthlyIssueStats: orgData.monthlyIssueStats,
         });
       } catch (error) {
         toast.error(error.message);
@@ -176,23 +178,7 @@ export default function Dashboard({ credentials }) {
         </div>
 
         <div className="bg-gradient-to-br from-white to-secondary-50 p-6 rounded-xl shadow-sm">
-          <h2 className="text-xl font-semibold mb-4 flex items-center text-primary-500">
-            <ArrowsRightLeftIcon className="h-5 w-5 mr-2" />
-            Pull Requests by Type
-          </h2>
-          <div className="space-y-4">
-            {Object.entries(data.prTypeStats)
-              .filter(([type, count]) => count > 5)
-              .map(([type, count]) => (
-                <div
-                  key={type}
-                  className="flex justify-between items-center hover:bg-white/50 p-2 rounded-lg transition-colors"
-                >
-                  <span className="text-gray-900">{type}</span>
-                  <span className="text-gray-600">{count} PRs</span>
-                </div>
-              ))}
-          </div>
+          <BurnupChart monthlyStats={data.monthlyIssueStats} />
         </div>
       </div>
 

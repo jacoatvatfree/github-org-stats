@@ -1,60 +1,16 @@
-import { Octokit } from "octokit";
+import { GitHubApiClient } from './github/api-client';
+import { CacheManager } from './github/cache-manager';
+import { StatsCalculator } from './github/stats-calculator';
 
 export class GithubRepository {
   constructor(token) {
-    this.client = new Octokit({ auth: token });
-    this.CACHE_KEY = "github_org_cache";
-    this.CACHE_EXPIRATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+    this.api = new GitHubApiClient(token);
+    this.cache = new CacheManager();
   }
 
-  async getAllPages(method, params) {
-    let allData = [];
-    let page = 1;
-    let hasNextPage = true;
-
-    while (hasNextPage) {
-      const response = await method({ ...params, page, per_page: 100 });
-      allData = [...allData, ...response.data];
-
-      const linkHeader = response.headers.link;
-      hasNextPage = linkHeader && linkHeader.includes('rel="next"');
-      page++;
-    }
-
-    return allData;
-  }
-
-  saveToCache(orgName, data) {
-    const cache = {
-      timestamp: new Date().getTime(),
-      orgName,
-      data,
-    };
-    localStorage.setItem(this.CACHE_KEY, JSON.stringify(cache));
-  }
-
-  getFromCache(orgName) {
-    const cached = localStorage.getItem(this.CACHE_KEY);
-    if (!cached) return null;
-
-    const cache = JSON.parse(cached);
-    const now = new Date().getTime();
-
-    // Check if cache is expired or for different org
-    if (
-      cache.orgName !== orgName ||
-      now - cache.timestamp > this.CACHE_EXPIRATION
-    ) {
-      localStorage.removeItem(this.CACHE_KEY);
-      return null;
-    }
-
-    return cache.data;
-  }
-
-  async getOrganization(orgName) {
+  async getOrganization(orgName, onProgress) {
     // Try to get data from cache first
-    const cachedData = this.getFromCache(orgName);
+    const cachedData = this.cache.get(orgName);
     if (cachedData) {
       return cachedData;
     }
@@ -64,60 +20,40 @@ export class GithubRepository {
 
     // Get all data in parallel
     const [members, allRepos] = await Promise.all([
-      this.getMembers(orgName),
-      this.getAllPages(
-        this.client.rest.repos.listForOrg.bind(this.client.rest.repos),
-        {
-          org: orgName,
-          sort: "updated",
-          type: "all",
-        },
-      ),
+      this.api.getMembers(orgName),
+      this.api.getRepos(orgName),
     ]);
 
     // Filter non-forked repos
     const ownRepos = allRepos.filter((repo) => !repo.fork);
 
+    let processed = 0;
+    const totalRepos = ownRepos.length;
+
     // Get stats for all repos in parallel
     const repoStats = await Promise.all(
       ownRepos.map(async (repo) => {
         try {
-          const [contributorStats, issuesAndPRs] = await Promise.all([
-            this.getContributorStatsWithRetry(orgName, repo.name),
-            // Get issues and PRs in one call - PRs are also issues in GitHub's API
-            this.getAllPages(
-              this.client.rest.issues.listForRepo.bind(this.client.rest.issues),
-              {
-                owner: orgName,
-                repo: repo.name,
-                since: startOfYear,
-                state: "all",
-              },
-            ),
+          const [contributorStats, issues, pullRequests] = await Promise.all([
+            this.api.getContributorStats(orgName, repo.name),
+            this.api.getIssues(orgName, repo.name, startOfYear),
+            this.api.getPullRequests(orgName, repo.name),
           ]);
 
-          // Separate API calls for issues and PRs
-          const issues = issuesAndPRs.filter((item) => !item.pull_request);
-
-          // Get PRs with full details including head
-          const pullRequests = await this.getAllPages(
-            this.client.rest.pulls.list.bind(this.client.rest.pulls),
-            {
-              owner: orgName,
-              repo: repo.name,
-              state: "closed",
-              sort: "created",
-              direction: "desc",
-            },
-          );
-
-          const yearlyIssues = issues.filter(
-            (item) => new Date(item.created_at).getFullYear() === currentYear,
+          // Filter issues (exclude PRs)
+          const filteredIssues = issues.filter((item) => !item.pull_request);
+          const yearlyIssues = filteredIssues.filter(
+            (item) => new Date(item.created_at).getFullYear() === currentYear
           );
 
           const yearlyPRs = pullRequests.filter(
             (item) => new Date(item.created_at).getFullYear() === currentYear,
           );
+
+          processed++;
+          if (onProgress) {
+            onProgress(processed, totalRepos);
+          }
 
           return {
             name: repo.name,
@@ -125,25 +61,29 @@ export class GithubRepository {
             contributorStats,
             issues: {
               opened: yearlyIssues.length,
-              closed: yearlyIssues.filter((item) => item.state === "closed")
-                .length,
+              closed: yearlyIssues.filter((item) => item.state === "closed").length,
+              monthlyStats: StatsCalculator.calculateMonthlyIssueStats(filteredIssues, currentYear)
             },
             pullRequests: {
               opened: yearlyPRs.length,
               closed: yearlyPRs.filter((pr) => pr.state === "closed").length,
-              types: this.categorizePRTypes(yearlyPRs),
+              types: StatsCalculator.categorizePRTypes(yearlyPRs),
             },
             createdAt: repo.created_at,
             archivedAt: repo.archived_at,
           };
         } catch (error) {
           console.warn(`Failed to get stats for ${repo.name}:`, error);
+          processed++;
+          if (onProgress) {
+            onProgress(processed, totalRepos);
+          }
           return null;
         }
       }),
     ).then((results) => results.filter(Boolean));
 
-    // Calculate member contributions from repo stats
+    // Calculate member contributions
     const memberStats = {};
     repoStats.forEach((repo) => {
       if (repo.contributorStats) {
@@ -188,315 +128,26 @@ export class GithubRepository {
           ) || 0,
       })),
       members: enhancedMembers,
-      yearlyStats: this.calculateYearlyStats(repoStats, currentYear),
+      yearlyStats: StatsCalculator.calculateYearlyStats(repoStats, currentYear),
+      monthlyIssueStats: repoStats.reduce((acc, repo) => {
+        if (!repo.issues.monthlyStats) return acc;
+        
+        repo.issues.monthlyStats.forEach((month, index) => {
+          if (!acc[index]) {
+            acc[index] = { opened: 0, closed: 0, total: 0 };
+          }
+          acc[index].opened += month.opened;
+          acc[index].closed += month.closed;
+          acc[index].total += month.total;
+        });
+        return acc;
+      }, Array(12).fill().map(() => ({ opened: 0, closed: 0, total: 0 })))
     };
 
     // Save the fresh data to cache
-    this.saveToCache(orgName, result);
+    this.cache.save(orgName, result);
 
     return result;
-  }
-
-  async getRepositories(orgName, onProgress) {
-    let allRepos = [];
-    let page = 1;
-    let hasNextPage = true;
-
-    while (hasNextPage) {
-      const response = await this.client.rest.repos.listForOrg({
-        org: orgName,
-        sort: "updated",
-        per_page: 100,
-        page: page,
-      });
-
-      allRepos = [...allRepos, ...response.data];
-
-      const linkHeader = response.headers.link;
-      hasNextPage = linkHeader && linkHeader.includes('rel="next"');
-      page++;
-    }
-
-    let processed = 0;
-    const ownRepos = [];
-
-    const currentYear = new Date().getFullYear();
-    const startOfYear = `${currentYear}-01-01T00:00:00Z`;
-
-    for (const repo of allRepos) {
-      try {
-        const [contributors, yearlyCommits] = await Promise.all([
-          this.getContributors(orgName, repo.name),
-          this.getCommits(orgName, repo.name, startOfYear),
-        ]);
-        if (!repo.fork) {
-          ownRepos.push({
-            name: repo.name,
-            stars: repo.stargazers_count,
-            contributors: contributors || [],
-            commitCount: yearlyCommits,
-          });
-        }
-      } catch (error) {
-        console.warn(`Failed to get contributors for ${repo.name}:`, error);
-        ownRepos.push({
-          name: repo.name,
-          stars: repo.stargazers_count,
-          contributors: [],
-        });
-      }
-
-      processed++;
-      if (onProgress) {
-        onProgress(processed, allRepos.length);
-      }
-    }
-
-    return ownRepos;
-  }
-
-  categorizePRTypes(prs) {
-    const types = {};
-
-    // Only count closed PRs
-    const closedPRs = prs.filter((pr) => pr.state === "closed");
-
-    closedPRs.forEach((pr) => {
-      if (pr.head?.ref) {
-        // Get type from branch name before the "/" or set as "unknown"
-        const type = pr.head.ref.includes("/")
-          ? pr.head.ref.split("/")[0].toLowerCase()
-          : "unknown";
-
-        types[type] = (types[type] || 0) + 1;
-      } else {
-        // If no branch ref is available, count as unknown
-        types["unknown"] = (types["unknown"] || 0) + 1;
-      }
-    });
-
-    return types;
-  }
-
-  calculateYearlyStats(repoStats, currentYear) {
-    return {
-      repositories: {
-        created: repoStats.filter(
-          (repo) => new Date(repo.createdAt).getFullYear() === currentYear,
-        ).length,
-        archived: repoStats.filter(
-          (repo) =>
-            repo.archivedAt &&
-            new Date(repo.archivedAt).getFullYear() === currentYear,
-        ).length,
-      },
-      commits: repoStats.reduce(
-        (sum, repo) =>
-          sum +
-          (repo.contributorStats?.reduce(
-            (total, contributor) =>
-              total +
-              contributor.weeks
-                .filter(
-                  (week) =>
-                    new Date(week.w * 1000).getFullYear() === currentYear,
-                )
-                .reduce((weekSum, week) => weekSum + week.c, 0),
-            0,
-          ) || 0),
-        0,
-      ),
-      issues: {
-        opened: repoStats.reduce((sum, repo) => sum + repo.issues.opened, 0),
-        closed: repoStats.reduce((sum, repo) => sum + repo.issues.closed, 0),
-      },
-      pullRequests: {
-        opened: repoStats.reduce(
-          (sum, repo) => sum + repo.pullRequests.opened,
-          0,
-        ),
-        closed: repoStats.reduce(
-          (sum, repo) => sum + repo.pullRequests.closed,
-          0,
-        ),
-        types: repoStats.reduce((types, repo) => {
-          Object.entries(repo.pullRequests.types).forEach(([type, count]) => {
-            types[type] = (types[type] || 0) + count;
-          });
-          return types;
-        }, {}),
-      },
-    };
-  }
-
-  async getCommits(owner, repo, since) {
-    try {
-      const commits = await this.getAllPages(
-        this.client.rest.repos.listCommits.bind(this.client.rest.repos),
-        {
-          owner,
-          repo,
-          since,
-        },
-      );
-      return commits.length;
-    } catch (error) {
-      console.warn(`Failed to get commits for ${repo}:`, error);
-      return 0;
-    }
-  }
-
-  async getIssues(owner, repo, since) {
-    try {
-      const [opened, closed] = await Promise.all([
-        this.getAllPages(
-          this.client.rest.issues.listForRepo.bind(this.client.rest.issues),
-          { owner, repo, state: "all", since },
-        ),
-        this.getAllPages(
-          this.client.rest.issues.listForRepo.bind(this.client.rest.issues),
-          { owner, repo, state: "closed", since },
-        ),
-      ]);
-
-      return {
-        opened: opened.length,
-        closed: closed.length,
-      };
-    } catch (error) {
-      return { opened: 0, closed: 0 };
-    }
-  }
-
-  async getPullRequests(owner, repo, since) {
-    try {
-      const [opened, closed] = await Promise.all([
-        this.getAllPages(
-          this.client.rest.pulls.list.bind(this.client.rest.pulls),
-          {
-            owner,
-            repo,
-            state: "all",
-            sort: "created",
-            direction: "desc",
-          },
-        ),
-        this.getAllPages(
-          this.client.rest.pulls.list.bind(this.client.rest.pulls),
-          {
-            owner,
-            repo,
-            state: "closed",
-            sort: "created",
-            direction: "desc",
-          },
-        ),
-      ]);
-
-      const currentYear = new Date().getFullYear();
-
-      return {
-        opened: opened.filter(
-          (pr) => new Date(pr.created_at).getFullYear() === currentYear,
-        ).length,
-        closed: closed.filter(
-          (pr) => new Date(pr.closed_at).getFullYear() === currentYear,
-        ).length,
-      };
-    } catch (error) {
-      return { opened: 0, closed: 0 };
-    }
-  }
-
-  async getMembers(orgName) {
-    return await this.getAllPages(
-      this.client.rest.orgs.listMembers.bind(this.client.rest.orgs),
-      { org: orgName },
-    );
-  }
-
-  async getContributorStatsWithRetry(owner, repo, retries = 3) {
-    try {
-      const response = await this.client.rest.repos.getContributorsStats({
-        owner,
-        repo,
-      });
-
-      // If status is 202, GitHub is still calculating the stats
-      if (response.status === 202 && retries > 0) {
-        // Wait for 1 second before retrying
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        return this.getContributorStatsWithRetry(owner, repo, retries - 1);
-      }
-
-      // Ensure we have valid data
-      return Array.isArray(response.data) ? response.data : [];
-    } catch (error) {
-      console.warn(`Failed to get contributor stats for ${repo}:`, error);
-      return [];
-    }
-  }
-
-  async getContributors(owner, repo) {
-    try {
-      return await this.getAllPages(
-        this.client.rest.repos.listContributors.bind(this.client.rest.repos),
-        { owner, repo },
-      );
-    } catch (error) {
-      return [];
-    }
-  }
-
-  async getMemberContributions(owner, repos) {
-    const memberStats = {};
-    const currentYear = new Date().getFullYear();
-
-    // Process in batches to avoid rate limiting
-    const batchSize = 5;
-    for (let i = 0; i < repos.length; i += batchSize) {
-      const batch = repos.slice(i, i + batchSize);
-
-      await Promise.all(
-        batch.map(async (repo) => {
-          try {
-            const { data: stats } =
-              await this.client.rest.repos.getContributorsStats({
-                owner,
-                repo: repo.name,
-              });
-
-            if (stats) {
-              stats.forEach((contributor) => {
-                const login = contributor.author?.login;
-                if (login) {
-                  // Get commits for current year from weekly data
-                  const yearCommits = contributor.weeks
-                    .filter(
-                      (week) =>
-                        new Date(week.w * 1000).getFullYear() === currentYear,
-                    )
-                    .reduce((sum, week) => sum + week.c, 0);
-
-                  memberStats[login] = (memberStats[login] || 0) + yearCommits;
-                }
-              });
-            }
-          } catch (error) {
-            console.warn(
-              `Failed to get contributor stats for ${repo.name}:`,
-              error,
-            );
-          }
-        }),
-      );
-
-      // Add a small delay between batches
-      if (i + batchSize < repos.length) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-      }
-    }
-
-    return memberStats;
+  
   }
 }
